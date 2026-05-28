@@ -14,6 +14,7 @@ import ViewPresets from '@/components/ViewPresets';
 import KeyboardShortcuts from '@/components/KeyboardShortcuts';
 import GlobalStatusBar from '@/components/GlobalStatusBar';
 import LiveAlerts from '@/components/LiveAlerts';
+import { ArbiterPanel } from '@/components/ArbiterPanel';
 
 const OsirisMap = dynamic(() => import('@/components/OsirisMap'), { ssr: false });
 const LayerPanel = dynamic(() => import('@/components/LayerPanel'));
@@ -410,6 +411,189 @@ export default function Dashboard() {
   ), [data.commercial_flights, data.private_flights, data.private_jets, data.military_flights]);
 
 
+
+  const arbiterRecords = useMemo(() => {
+    const records: any[] = [];
+
+    const add = (items: any[] | undefined, map: (x: any, i: number) => any) => {
+      if (!Array.isArray(items)) return;
+      items.forEach((x, i) => {
+        const record = map(x, i);
+        if (
+          record?.title &&
+          Number.isFinite(record.lat) &&
+          Number.isFinite(record.lng)
+        ) {
+          records.push(record);
+        }
+      });
+    };
+
+    add(data.earthquakes, (x, i) => ({
+      id: `earthquake-${x.id || i}`,
+      type: 'earthquake',
+      title: x.title || `${x.magnitude || x.mag ? `M${x.magnitude ?? x.mag}` : 'Earthquake'}${x.place ? ` near ${x.place}` : ''}`,
+      source: x.source || 'USGS',
+      location: x.place || x.location,
+      lat: Number(x.lat ?? x.latitude),
+      lng: Number(x.lng ?? x.lon ?? x.longitude),
+      severity: String(x.magnitude ?? x.mag ?? x.severity ?? 'live'),
+      timestamp: x.time || x.timestamp || x.date,
+      raw: x,
+    }));
+
+    add(data.fires, (x, i) => ({
+      id: `fire-${x.id || i}`,
+      type: 'fire',
+      title: x.title || x.name || `Active fire hotspot${x.location || x.place ? ` near ${x.location || x.place}` : ''}`,
+      source: x.source || 'NASA FIRMS',
+      location: x.location || x.place,
+      lat: Number(x.lat ?? x.latitude),
+      lng: Number(x.lng ?? x.lon ?? x.longitude),
+      severity: String(x.severity || x.confidence || 'active'),
+      timestamp: x.time || x.timestamp || x.acq_date,
+      raw: x,
+    }));
+
+    add(data.weather_events, (x, i) => ({
+      id: `weather-${x.id || i}`,
+      type: 'weather',
+      title: x.title || x.name || 'Severe weather event',
+      source: x.source || 'EONET / GDACS',
+      location: x.location || x.place,
+      lat: Number(x.lat ?? x.latitude),
+      lng: Number(x.lng ?? x.lon ?? x.longitude),
+      severity: String(x.severity || x.status || 'watch'),
+      timestamp: x.time || x.timestamp || x.date,
+      raw: x,
+    }));
+
+    add(data.gdelt, (x, i) => ({
+      id: `gdelt-${x.id || i}`,
+      type: 'gdelt',
+      title: x.title || x.headline || 'Global incident signal',
+      source: x.source || 'GDELT',
+      location: x.location || x.country || x.region,
+      lat: Number(x.lat ?? x.latitude),
+      lng: Number(x.lng ?? x.lon ?? x.longitude),
+      severity: String(x.severity || x.tone || 'rising'),
+      timestamp: x.time || x.timestamp || x.date,
+      raw: x,
+    }));
+
+    add(data.live_feeds, (x, i) => ({
+      id: `live-news-${x.id || i}`,
+      type: 'live_news',
+      title: x.name || x.title || 'Live news feed',
+      source: x.network || x.source || 'Live News',
+      location: x.location || x.country,
+      lat: Number(x.lat ?? x.latitude),
+      lng: Number(x.lng ?? x.lon ?? x.longitude),
+      severity: 'live',
+      timestamp: 'live',
+      raw: x,
+    }));
+
+    const flightMapper = (type: string, fallbackTitle: string) => (x: any, i: number) => ({
+      id: `${type}-${x.icao24 || x.callsign || i}`,
+      type,
+      title: x.callsign || x.flight || fallbackTitle,
+      source: 'OpenSky',
+      location: x.origin_country,
+      lat: Number(x.latitude ?? x.lat),
+      lng: Number(x.longitude ?? x.lng ?? x.lon),
+      severity: type,
+      timestamp: x.time_position || x.last_contact,
+      raw: x,
+    });
+
+    add(data.commercial_flights, flightMapper('commercial_flight', 'Commercial aircraft'));
+    add(data.private_flights, flightMapper('private_flight', 'Private aircraft'));
+    add(data.private_jets, flightMapper('private_jet', 'Private jet'));
+    add(data.military_flights, flightMapper('military_flight', 'Military aircraft'));
+
+    add(data.maritime_ports, (x, i) => ({
+      id: `port-${x.id || x.name || i}`,
+      type: 'maritime_port',
+      title: x.name || 'Maritime port',
+      source: 'OSIRIS Maritime',
+      location: x.country || x.region,
+      lat: Number(x.lat ?? x.latitude),
+      lng: Number(x.lng ?? x.lon ?? x.longitude),
+      severity: String(x.severity || 'port'),
+      timestamp: 'static',
+      raw: x,
+    }));
+
+    add(data.maritime_chokepoints, (x, i) => ({
+      id: `chokepoint-${x.id || x.name || i}`,
+      type: 'maritime_chokepoint',
+      title: x.name || 'Maritime chokepoint',
+      source: 'OSIRIS Maritime',
+      location: x.region || x.country,
+      lat: Number(x.lat ?? x.latitude),
+      lng: Number(x.lng ?? x.lon ?? x.longitude),
+      severity: String(x.severity || 'strategic'),
+      timestamp: 'static',
+      raw: x,
+    }));
+
+    add(data.maritime_ships, (x, i) => ({
+      id: `ship-${x.id || x.mmsi || x.name || i}`,
+      type: 'maritime_ship',
+      title: x.name || x.vessel || 'Maritime vessel',
+      source: 'OSIRIS Maritime',
+      location: x.region || x.country,
+      lat: Number(x.lat ?? x.latitude),
+      lng: Number(x.lng ?? x.lon ?? x.longitude),
+      severity: String(x.severity || x.type || 'vessel'),
+      timestamp: x.time || x.timestamp || 'live',
+      raw: x,
+    }));
+
+    add(data.cameras, (x, i) => ({
+      id: `cctv-${x.id || x.name || i}`,
+      type: 'cctv',
+      title: x.name || 'CCTV camera',
+      source: x.source || 'CCTV',
+      location: x.location || x.city || x.region,
+      lat: Number(x.lat ?? x.latitude),
+      lng: Number(x.lng ?? x.lon ?? x.longitude),
+      severity: 'camera',
+      timestamp: 'live',
+      raw: x,
+    }));
+
+    add(data.satellites, (x, i) => ({
+      id: `satellite-${x.id || x.satid || x.name || i}`,
+      type: 'satellite',
+      title: x.name || x.satname || 'Satellite',
+      source: 'N2YO / TLE',
+      location: 'orbit',
+      lat: Number(x.lat ?? x.latitude),
+      lng: Number(x.lng ?? x.lon ?? x.longitude),
+      severity: String(x.category || 'orbital'),
+      timestamp: x.timestamp || 'live',
+      raw: x,
+    }));
+
+    add(data.infrastructure, (x, i) => ({
+      id: `infrastructure-${x.id || x.name || i}`,
+      type: 'infrastructure',
+      title: x.name || x.title || 'Infrastructure signal',
+      source: x.source || 'OSIRIS Infrastructure',
+      location: x.location || x.country || x.region,
+      lat: Number(x.lat ?? x.latitude),
+      lng: Number(x.lng ?? x.lon ?? x.longitude),
+      severity: String(x.severity || x.type || 'infrastructure'),
+      timestamp: x.time || x.timestamp || 'static',
+      raw: x,
+    }));
+
+    return records;
+  }, [dataVersion]);
+
+
   return (
     <main className="fixed inset-0 w-full h-full bg-[var(--bg-void)] overflow-hidden">
 
@@ -772,6 +956,14 @@ export default function Dashboard() {
           });
           setFlyToLocation({ lat: data.lat, lng: data.lng, ts: Date.now() });
         }} />
+        <ArbiterPanel
+          records={arbiterRecords}
+          onSelect={(record) => {
+            if (typeof record.lat === 'number' && typeof record.lng === 'number') {
+              setFlyToLocation({ lat: record.lat, lng: record.lng, ts: Date.now() });
+            }
+          }}
+        />
         <LiveAlerts data={data} onLocate={(lat, lng) => setFlyToLocation({ lat, lng, ts: Date.now() })} onWatchFeed={(url, name) => { setLiveFeedUrl(url); setLiveFeedName(name); }} />
       </div>
 
