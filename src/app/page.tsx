@@ -590,7 +590,29 @@ export default function Dashboard() {
       raw: x,
     }));
 
-    return records;
+    return records
+  .filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lng))
+  .sort((a, b) => {
+    const priority: Record<string, number> = {
+      earthquake: 100,
+      gdelt: 95,
+      live_news: 90,
+      global_incident: 90,
+      military_flight: 85,
+      private_jet: 80,
+      maritime_chokepoint: 78,
+      maritime_ship: 72,
+      fire: 70,
+      weather: 68,
+      cctv: 45,
+      commercial_flight: 35,
+      private_flight: 30,
+      satellite: 25,
+    };
+
+    return (priority[b.type] || 10) - (priority[a.type] || 10);
+  })
+  .slice(0, 500);
   }, [dataVersion]);
 
 
