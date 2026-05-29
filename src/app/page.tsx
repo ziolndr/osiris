@@ -591,50 +591,48 @@ export default function Dashboard() {
       raw: x,
     }));
 
-    const marketItems = Array.isArray(data.markets)
-      ? data.markets
-      : Array.isArray(data.markets?.markets)
-        ? data.markets.markets
-        : Array.isArray(data.markets?.indices)
-          ? data.markets.indices
-          : Array.isArray(data.markets?.assets)
-            ? data.markets.assets
-            : Array.isArray(data.markets?.stocks)
-              ? data.markets.stocks
-              : Array.isArray(data.markets?.crypto)
-                ? data.markets.crypto
-                : [];
+    const marketBuckets = [
+      ['stocks', data.markets?.stocks],
+      ['oil', data.markets?.oil],
+      ['commodities', data.markets?.commodities],
+      ['crypto', data.markets?.crypto],
+      ['indices', data.markets?.indices],
+    ] as const;
 
-    add(marketItems, (x, i) => {
-      const symbol = x.symbol || x.ticker || x.name || x.id || `market-${i}`;
-      const name = x.name || x.title || symbol;
-      const price = x.price ?? x.last ?? x.close ?? x.value;
-      const change = x.change ?? x.changePercent ?? x.percent_change ?? x.percentChange;
-      const sector = x.sector || x.category || x.market || x.type || 'market';
-      const region = x.region || x.country || x.exchange || 'global markets';
+    marketBuckets.forEach(([bucket, assets]) => {
+      if (!assets || typeof assets !== 'object' || Array.isArray(assets)) return;
 
-      return {
-        id: `market-${symbol}-${i}`,
-        type: 'market',
-        title: `${name}${symbol !== name ? ` (${symbol})` : ''}`,
-        source: x.source || 'OSIRIS Markets',
-        location: region,
-        lat: Number(x.lat ?? x.latitude ?? 40.7128),
-        lng: Number(x.lng ?? x.lon ?? x.longitude ?? -74.0060),
-        severity: String(change ?? sector ?? 'market'),
-        timestamp: x.time || x.timestamp || x.date || 'live',
-        raw: x,
-        symbol,
-        price,
-        change,
-        sector,
-      };
+      Object.entries(assets).forEach(([symbol, value], i) => {
+        const x = value as any;
+        const price = x.price;
+        const change = x.change_percent ?? x.changePercent ?? x.percent_change ?? x.change;
+        const up = Boolean(x.up);
+        const direction = up ? 'up' : 'down';
+
+        records.push({
+          id: `market-${bucket}-${symbol}-${i}`,
+          type: 'market',
+          title: `${symbol} ${direction} ${change ?? 0}%`,
+          source: 'OSIRIS Markets',
+          location: bucket,
+          lat: 40.7128,
+          lng: -74.0060,
+          severity: `${direction} ${change ?? 0}%`,
+          timestamp: data.markets?.timestamp || 'live',
+          raw: x,
+          symbol,
+          price,
+          change,
+          sector: bucket,
+          up,
+        });
+      });
     });
 
     const priority: Record<string, number> = {
       earthquake: 100,
+      market: 98,
       gdelt: 95,
-      market: 92,
       live_news: 90,
       global_incident: 90,
       military_flight: 85,
