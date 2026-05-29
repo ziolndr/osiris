@@ -9,10 +9,13 @@ export type ArbiterCandidate = {
   severity?: string;
   timestamp?: string | number;
   raw?: unknown;
+
   symbol?: string;
   price?: string | number;
   change?: string | number;
   sector?: string;
+  up?: boolean;
+  url?: string;
 };
 
 export type ArbiterRankedResult = {
@@ -27,15 +30,16 @@ export function osirisToCandidateText(x: ArbiterCandidate) {
   if (x.type === "market") {
     return [
       `Market signal: ${x.title}`,
-      x.symbol ? `Ticker: ${x.symbol}` : "",
+      x.symbol ? `Ticker or asset: ${x.symbol}` : "",
       x.price !== undefined ? `Price: ${x.price}` : "",
-      x.change !== undefined ? `Change: ${x.change}` : "",
-      x.sector ? `Sector: ${x.sector}` : "",
+      x.change !== undefined ? `Change percent: ${x.change}` : "",
+      x.up !== undefined ? `Direction: ${x.up ? "up" : "down"}` : "",
+      x.sector ? `Market bucket: ${x.sector}` : "",
       x.source ? `Source: ${x.source}` : "",
       x.location ? `Market region: ${x.location}` : "",
-      x.severity ? `Market status: ${x.severity}` : "",
       x.timestamp ? `Time: ${x.timestamp}` : "",
-      `Search surface: financial market signal, price movement, volatility, macro pressure, liquidity, sector rotation, geopolitical risk, commodities, equities, rates, risk assets, safe haven flow`,
+      x.url ? `Reference URL: ${x.url}` : "",
+      `Search surface: financial market signal, price movement, volatility, macro pressure, liquidity, sector rotation, defense stocks, aerospace, oil, energy shock, commodities, gold, silver, copper, natural gas, grain, crypto, bitcoin, ethereum, equities, indices, risk assets, safe haven flow, geopolitical risk`,
     ].filter(Boolean).join(". ");
   }
 
