@@ -8,6 +8,8 @@ export type ArbiterCandidate = {
   lng?: number;
   severity?: string;
   timestamp?: string | number;
+  summary?: string;
+  url?: string;
   raw?: unknown;
 
   symbol?: string;
@@ -15,7 +17,6 @@ export type ArbiterCandidate = {
   change?: string | number;
   sector?: string;
   up?: boolean;
-  url?: string;
 };
 
 export type ArbiterRankedResult = {
@@ -26,32 +27,40 @@ export type ArbiterRankedResult = {
 
 const ARBITER_COMPARE_URL = "https://api.arbiter.traut.ai/public/compare";
 
+export function stripHtml(input?: string) {
+  if (!input) return "";
+  return input
+    .replace(/<br\s*\/?>/gi, ". ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function osirisToCandidateText(x: ArbiterCandidate) {
   if (x.type === "market") {
     return [
-      `Market signal: ${x.title}`,
-      x.symbol ? `Ticker or asset: ${x.symbol}` : "",
+      `Market: ${x.title}`,
+      x.symbol ? `Asset: ${x.symbol}` : "",
       x.price !== undefined ? `Price: ${x.price}` : "",
       x.change !== undefined ? `Change percent: ${x.change}` : "",
       x.up !== undefined ? `Direction: ${x.up ? "up" : "down"}` : "",
-      x.sector ? `Market bucket: ${x.sector}` : "",
-      x.source ? `Source: ${x.source}` : "",
-      x.location ? `Market region: ${x.location}` : "",
+      x.sector ? `Category: ${x.sector}` : "",
       x.timestamp ? `Time: ${x.timestamp}` : "",
-      x.url ? `Reference URL: ${x.url}` : "",
-      `Search surface: financial market signal, price movement, volatility, macro pressure, liquidity, sector rotation, defense stocks, aerospace, oil, energy shock, commodities, gold, silver, copper, natural gas, grain, crypto, bitcoin, ethereum, equities, indices, risk assets, safe haven flow, geopolitical risk`,
+      x.url ? `URL: ${x.url}` : "",
     ].filter(Boolean).join(". ");
   }
 
   return [
-    `Signal: ${x.title}`,
-    `Domain: ${x.type}`,
+    `${x.type}: ${x.title}`,
+    x.summary ? `Summary: ${x.summary}` : "",
     x.source ? `Source: ${x.source}` : "",
     x.location ? `Location: ${x.location}` : "",
-    Number.isFinite(x.lat) && Number.isFinite(x.lng) ? `Coordinates: ${x.lat}, ${x.lng}` : "",
-    x.severity ? `Severity: ${x.severity}` : "",
+    x.severity ? `Status: ${x.severity}` : "",
     x.timestamp ? `Time: ${x.timestamp}` : "",
-    `Search surface: live OSINT, geopolitical signal, infrastructure risk, anomaly, cascade risk, aviation, maritime, seismic, cyber, weather, conflict, surveillance, live media, situational awareness`,
+    x.url ? `URL: ${x.url}` : "",
   ].filter(Boolean).join(". ");
 }
 
@@ -111,3 +120,4 @@ export async function compareWithArbiter(
     })
     .filter(Boolean) as ArbiterRankedResult[];
 }
+

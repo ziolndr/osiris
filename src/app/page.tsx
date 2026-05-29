@@ -416,6 +416,16 @@ export default function Dashboard() {
     const records: any[] = [];
     const ARBITER_SIGNAL_LIMIT = 500;
 
+    const htmlToText = (input?: string) =>
+      String(input || '')
+        .replace(/<br\s*\/?>/gi, '. ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&#39;/g, "'")
+        .replace(/&quot;/g, '"')
+        .replace(/\s+/g, ' ')
+        .trim();
+
     const add = (items: any[] | undefined, map: (x: any, i: number) => any) => {
       if (!Array.isArray(items)) return;
       items.forEach((x, i) => {
@@ -440,6 +450,8 @@ export default function Dashboard() {
       lng: Number(x.lng ?? x.lon ?? x.longitude),
       severity: String(x.magnitude ?? x.mag ?? x.severity ?? 'live'),
       timestamp: x.time || x.timestamp || x.date,
+      summary: x.summary || x.description || x.place || x.location,
+      url: x.url,
       raw: x,
     }));
 
@@ -453,6 +465,8 @@ export default function Dashboard() {
       lng: Number(x.lng ?? x.lon ?? x.longitude),
       severity: String(x.severity || x.confidence || 'active'),
       timestamp: x.time || x.timestamp || x.acq_date,
+      summary: x.summary || x.description || x.location || x.place,
+      url: x.url,
       raw: x,
     }));
 
@@ -466,34 +480,122 @@ export default function Dashboard() {
       lng: Number(x.lng ?? x.lon ?? x.longitude),
       severity: String(x.severity || x.status || 'watch'),
       timestamp: x.time || x.timestamp || x.date,
+      summary: x.summary || x.description || x.event || x.name,
+      url: x.url,
       raw: x,
     }));
 
-    add(data.gdelt, (x, i) => ({
-      id: `gdelt-${x.id || i}`,
-      type: 'gdelt',
-      title: x.title || x.headline || 'Global incident signal',
-      source: x.source || 'GDELT',
-      location: x.location || x.country || x.region,
-      lat: Number(x.lat ?? x.latitude),
-      lng: Number(x.lng ?? x.lon ?? x.longitude),
-      severity: String(x.severity || x.tone || 'rising'),
-      timestamp: x.time || x.timestamp || x.date,
-      raw: x,
-    }));
+    add(data.gdelt, (x, i) => {
+      const cleanHtml = htmlToText(x.html);
+      const title =
+        x.title ||
+        x.headline ||
+        x.article_title ||
+        x.event_title ||
+        x.name ||
+        cleanHtml ||
+        x.url ||
+        '';
 
-    add(data.live_feeds, (x, i) => ({
-      id: `live-news-${x.id || i}`,
-      type: 'live_news',
-      title: x.name || x.title || 'Live news feed',
-      source: x.network || x.source || 'Live News',
-      location: x.location || x.country,
-      lat: Number(x.lat ?? x.latitude),
-      lng: Number(x.lng ?? x.lon ?? x.longitude),
-      severity: 'live',
-      timestamp: 'live',
-      raw: x,
-    }));
+      const summary =
+        x.summary ||
+        x.description ||
+        x.text ||
+        x.content ||
+        x.snippet ||
+        cleanHtml ||
+        x.url ||
+        '';
+
+      if (!title && !summary) return null;
+
+      return {
+        id: `gdelt-${x.id || x.url || i}`,
+        type: x.type || 'gdelt',
+        title,
+        source: x.source || x.domain || x.publisher || 'GDELT',
+        location: x.location || x.country || x.region || x.actor1CountryCode || x.actor2CountryCode,
+        lat: Number(x.lat ?? x.latitude),
+        lng: Number(x.lng ?? x.lon ?? x.longitude),
+        severity: String(x.tone ?? x.goldsteinScale ?? x.numMentions ?? x.severity ?? 'rising'),
+        timestamp: x.time || x.timestamp || x.date || x.seendate,
+        summary,
+        url: x.url,
+        raw: x,
+      };
+    });
+
+    add(data.live_feeds, (x, i) => {
+      const summary = x.summary || x.description || x.current_headline || x.latest || x.text;
+      if (!summary) return null;
+
+      return {
+        id: `live-news-${x.id || i}`,
+        type: 'live_news',
+        title: x.title || x.name || String(summary).slice(0, 100),
+        source: x.network || x.source || 'Live News',
+        location: x.location || x.country || x.city,
+        lat: Number(x.lat ?? x.latitude),
+        lng: Number(x.lng ?? x.lon ?? x.longitude),
+        severity: 'live',
+        timestamp: x.time || x.timestamp || 'live',
+        summary,
+        url: x.url,
+        raw: x,
+      };
+    });
+
+    const osintItems = [
+      ...(Array.isArray(data.osint) ? data.osint : []),
+      ...(Array.isArray(data.news_intel) ? data.news_intel : []),
+      ...(Array.isArray(data.news) ? data.news : []),
+      ...(Array.isArray(data.global_incidents) ? data.global_incidents : []),
+    ];
+
+    add(osintItems, (x, i) => {
+      const cleanHtml = htmlToText(x.html);
+      const title = x.name || x.title || x.headline || cleanHtml || x.url || '';
+      const summary = x.summary || x.description || x.text || cleanHtml || title;
+
+      if (!title && !summary) return null;
+
+      return {
+        id: x.id || `osint-${i}`,
+        type: x.type || 'osint',
+        title,
+        source: x.source || x.feed || 'OSIRIS OSINT',
+        location: x.location || x.country || x.city || x.type,
+        lat: Number(x.lat ?? x.latitude),
+        lng: Number(x.lng ?? x.lon ?? x.longitude),
+        severity: String(x.severity || x.type || 'live'),
+        timestamp: x.time || x.timestamp || x.date || 'live',
+        summary,
+        url: x.url,
+        raw: x,
+      };
+    });
+
+    const regionDossier = data.region_dossier || data.regionDossier;
+    if (regionDossier?.coordinates && regionDossier?.wikipedia?.extract) {
+      records.push({
+        id: `region-dossier-${regionDossier.location?.country_code || 'current'}`,
+        type: 'region_dossier',
+        title: regionDossier.wikipedia.title || regionDossier.country?.name || 'Region dossier',
+        source: 'OSIRIS Region Dossier',
+        location: regionDossier.location?.display_name || regionDossier.country?.name,
+        lat: Number(regionDossier.coordinates.lat),
+        lng: Number(regionDossier.coordinates.lng),
+        severity: regionDossier.country?.region || 'dossier',
+        timestamp: regionDossier.timestamp || 'live',
+        summary: [
+          regionDossier.wikipedia.extract,
+          regionDossier.country?.official_name ? `Official name: ${regionDossier.country.official_name}` : '',
+          regionDossier.head_of_state?.name ? `Head of state/government: ${regionDossier.head_of_state.name}, ${regionDossier.head_of_state.position}` : '',
+        ].filter(Boolean).join(' '),
+        url: regionDossier.wikipedia?.thumbnail,
+        raw: regionDossier,
+      });
+    }
 
     const flightMapper = (type: string, fallbackTitle: string) => (x: any, i: number) => ({
       id: `${type}-${x.icao24 || x.callsign || i}`,
@@ -505,6 +607,7 @@ export default function Dashboard() {
       lng: Number(x.longitude ?? x.lng ?? x.lon),
       severity: type,
       timestamp: x.time_position || x.last_contact,
+      summary: x.callsign || x.flight || x.origin_country || '',
       raw: x,
     });
 
@@ -523,6 +626,7 @@ export default function Dashboard() {
       lng: Number(x.lng ?? x.lon ?? x.longitude),
       severity: String(x.severity || 'port'),
       timestamp: 'static',
+      summary: x.summary || x.description || x.country || x.region,
       raw: x,
     }));
 
@@ -536,6 +640,7 @@ export default function Dashboard() {
       lng: Number(x.lng ?? x.lon ?? x.longitude),
       severity: String(x.severity || 'strategic'),
       timestamp: 'static',
+      summary: x.summary || x.description || x.region || x.country,
       raw: x,
     }));
 
@@ -549,34 +654,48 @@ export default function Dashboard() {
       lng: Number(x.lng ?? x.lon ?? x.longitude),
       severity: String(x.severity || x.type || 'vessel'),
       timestamp: x.time || x.timestamp || 'live',
+      summary: x.summary || x.description || x.name || x.vessel,
       raw: x,
     }));
 
-    add(data.cameras, (x, i) => ({
-      id: `cctv-${x.id || x.name || i}`,
-      type: 'cctv',
-      title: x.name || 'CCTV camera',
-      source: x.source || 'CCTV',
-      location: x.location || x.city || x.region,
-      lat: Number(x.lat ?? x.latitude),
-      lng: Number(x.lng ?? x.lon ?? x.longitude),
-      severity: 'camera',
-      timestamp: 'live',
-      raw: x,
-    }));
+    add(data.cameras, (x, i) => {
+      const summary = x.summary || x.description || x.status || x.url;
+      if (!summary) return null;
 
-    add(data.satellites, (x, i) => ({
-      id: `satellite-${x.id || x.satid || x.name || i}`,
-      type: 'satellite',
-      title: x.name || x.satname || 'Satellite',
-      source: 'N2YO / TLE',
-      location: 'orbit',
-      lat: Number(x.lat ?? x.latitude),
-      lng: Number(x.lng ?? x.lon ?? x.longitude),
-      severity: String(x.category || 'orbital'),
-      timestamp: x.timestamp || 'live',
-      raw: x,
-    }));
+      return {
+        id: `cctv-${x.id || x.name || i}`,
+        type: 'cctv',
+        title: x.name || 'CCTV camera',
+        source: x.source || 'CCTV',
+        location: x.location || x.city || x.region,
+        lat: Number(x.lat ?? x.latitude),
+        lng: Number(x.lng ?? x.lon ?? x.longitude),
+        severity: 'camera',
+        timestamp: 'live',
+        summary,
+        url: x.url,
+        raw: x,
+      };
+    });
+
+    add(data.satellites, (x, i) => {
+      const summary = x.summary || x.description || x.category || x.name || x.satname;
+      if (!summary) return null;
+
+      return {
+        id: `satellite-${x.id || x.satid || x.name || i}`,
+        type: 'satellite',
+        title: x.name || x.satname || 'Satellite',
+        source: 'N2YO / TLE',
+        location: 'orbit',
+        lat: Number(x.lat ?? x.latitude),
+        lng: Number(x.lng ?? x.lon ?? x.longitude),
+        severity: String(x.category || 'orbital'),
+        timestamp: x.timestamp || 'live',
+        summary,
+        raw: x,
+      };
+    });
 
     add(data.infrastructure, (x, i) => ({
       id: `infrastructure-${x.id || x.name || i}`,
@@ -588,6 +707,8 @@ export default function Dashboard() {
       lng: Number(x.lng ?? x.lon ?? x.longitude),
       severity: String(x.severity || x.type || 'infrastructure'),
       timestamp: x.time || x.timestamp || 'static',
+      summary: x.summary || x.description || x.name || x.title,
+      url: x.url,
       raw: x,
     }));
 
@@ -608,7 +729,6 @@ export default function Dashboard() {
         const change = x.change_percent ?? x.changePercent ?? x.percent_change ?? x.change;
         const up = Boolean(x.up);
         const direction = up ? 'up' : 'down';
-
         const encodedSymbol = encodeURIComponent(symbol);
         const url =
           bucket === 'crypto'
@@ -627,18 +747,23 @@ export default function Dashboard() {
           lng: -74.0060,
           severity: `${direction} ${change ?? 0}%`,
           timestamp: data.markets?.timestamp || 'live',
+          summary: `${symbol} price ${price}, ${direction} ${change ?? 0}% in ${bucket}`,
+          url,
           raw: x,
           symbol,
           price,
           change,
           sector: bucket,
           up,
-          url,
         });
       });
     });
 
     const priority: Record<string, number> = {
+      conflict: 110,
+      osint: 108,
+      news_intel: 108,
+      region_dossier: 106,
       earthquake: 100,
       market: 98,
       gdelt: 95,
@@ -657,8 +782,26 @@ export default function Dashboard() {
       satellite: 25,
     };
 
+    const caps: Record<string, number> = {
+      cctv: 40,
+      commercial_flight: 30,
+      private_flight: 20,
+      satellite: 30,
+      market: 60,
+    };
+
+    const seenByType = new Map<string, number>();
+
     return records
       .filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lng))
+      .filter((r) => {
+        const cap = caps[r.type];
+        if (!cap) return true;
+        const count = seenByType.get(r.type) || 0;
+        if (count >= cap) return false;
+        seenByType.set(r.type, count + 1);
+        return true;
+      })
       .sort((a, b) => (priority[b.type] || 10) - (priority[a.type] || 10))
       .slice(0, ARBITER_SIGNAL_LIMIT);
   }, [dataVersion]);
@@ -1029,7 +1172,7 @@ export default function Dashboard() {
         <ArbiterPanel
           records={arbiterRecords}
           onSelect={(record) => {
-            if (record.type === 'market' && record.url) {
+            if (record.url) {
               window.open(record.url, '_blank', 'noopener,noreferrer');
               return;
             }
@@ -1360,3 +1503,4 @@ export default function Dashboard() {
     </main>
   );
 }
+
