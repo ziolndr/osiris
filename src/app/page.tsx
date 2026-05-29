@@ -609,6 +609,14 @@ export default function Dashboard() {
         const up = Boolean(x.up);
         const direction = up ? 'up' : 'down';
 
+        const encodedSymbol = encodeURIComponent(symbol);
+        const url =
+          bucket === 'crypto'
+            ? `https://www.coingecko.com/en/search?query=${encodedSymbol}`
+            : bucket === 'oil' || bucket === 'commodities'
+              ? `https://www.tradingview.com/search/?query=${encodedSymbol}`
+              : `https://finance.yahoo.com/quote/${encodedSymbol}`;
+
         records.push({
           id: `market-${bucket}-${symbol}-${i}`,
           type: 'market',
@@ -625,6 +633,7 @@ export default function Dashboard() {
           change,
           sector: bucket,
           up,
+          url,
         });
       });
     });
@@ -1020,6 +1029,11 @@ export default function Dashboard() {
         <ArbiterPanel
           records={arbiterRecords}
           onSelect={(record) => {
+            if (record.type === 'market' && record.url) {
+              window.open(record.url, '_blank', 'noopener,noreferrer');
+              return;
+            }
+
             if (typeof record.lat === 'number' && typeof record.lng === 'number') {
               setFlyToLocation({ lat: record.lat, lng: record.lng, ts: Date.now() });
             }
