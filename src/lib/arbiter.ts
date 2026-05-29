@@ -9,6 +9,10 @@ export type ArbiterCandidate = {
   severity?: string;
   timestamp?: string | number;
   raw?: unknown;
+  symbol?: string;
+  price?: string | number;
+  change?: string | number;
+  sector?: string;
 };
 
 export type ArbiterRankedResult = {
@@ -20,6 +24,21 @@ export type ArbiterRankedResult = {
 const ARBITER_COMPARE_URL = "https://api.arbiter.traut.ai/public/compare";
 
 export function osirisToCandidateText(x: ArbiterCandidate) {
+  if (x.type === "market") {
+    return [
+      `Market signal: ${x.title}`,
+      x.symbol ? `Ticker: ${x.symbol}` : "",
+      x.price !== undefined ? `Price: ${x.price}` : "",
+      x.change !== undefined ? `Change: ${x.change}` : "",
+      x.sector ? `Sector: ${x.sector}` : "",
+      x.source ? `Source: ${x.source}` : "",
+      x.location ? `Market region: ${x.location}` : "",
+      x.severity ? `Market status: ${x.severity}` : "",
+      x.timestamp ? `Time: ${x.timestamp}` : "",
+      `Search surface: financial market signal, price movement, volatility, macro pressure, liquidity, sector rotation, geopolitical risk, commodities, equities, rates, risk assets, safe haven flow`,
+    ].filter(Boolean).join(". ");
+  }
+
   return [
     `Signal: ${x.title}`,
     `Domain: ${x.type}`,
