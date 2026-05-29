@@ -15,6 +15,7 @@ import KeyboardShortcuts from '@/components/KeyboardShortcuts';
 import GlobalStatusBar from '@/components/GlobalStatusBar';
 import LiveAlerts from '@/components/LiveAlerts';
 import { ArbiterPanel } from '@/components/ArbiterPanel';
+import { buildLiveAlertRecords } from '@/lib/osiris-alerts';
 
 const OsirisMap = dynamic(() => import('@/components/OsirisMap'), { ssr: false });
 const LayerPanel = dynamic(() => import('@/components/LayerPanel'));
@@ -440,6 +441,30 @@ export default function Dashboard() {
       });
     };
 
+    const liveAlertRecords = buildLiveAlertRecords(data, { includeFeeds: false, quakeLimit: 12 });
+
+    liveAlertRecords.forEach((alert) => {
+      const lat = Number(alert.lat);
+      const lng = Number(alert.lng);
+      if (!alert.title || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+      records.push({
+        id: alert.id || `live-alert-${records.length}`,
+        type: alert.type === 'news' ? 'news_alert' : alert.type,
+        title: alert.title,
+        source: alert.source || 'Live Alerts',
+        location: alert.location || alert.source,
+        lat,
+        lng,
+        severity: alert.severity || alert.type,
+        timestamp: alert.time || 'live',
+        summary: alert.summary || alert.description || alert.title,
+        url: alert.url,
+        raw: alert.raw || alert,
+      });
+    });
+
+
     add(data.earthquakes, (x, i) => ({
       id: `earthquake-${x.id || i}`,
       type: 'earthquake',
@@ -760,7 +785,7 @@ export default function Dashboard() {
     });
 
     const priority: Record<string, number> = {
-      conflict: 110,
+      conflict: 120,
       osint: 108,
       news_intel: 108,
       region_dossier: 106,
@@ -783,10 +808,10 @@ export default function Dashboard() {
     };
 
     const caps: Record<string, number> = {
-      cctv: 40,
-      commercial_flight: 30,
-      private_flight: 20,
-      satellite: 30,
+      cctv: 0,
+      commercial_flight: 10,
+      private_flight: 5,
+      satellite: 10,
       market: 60,
     };
 
@@ -1503,4 +1528,3 @@ export default function Dashboard() {
     </main>
   );
 }
-
