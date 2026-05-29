@@ -414,6 +414,7 @@ export default function Dashboard() {
 
   const arbiterRecords = useMemo(() => {
     const records: any[] = [];
+    const ARBITER_SIGNAL_LIMIT = 500;
 
     const add = (items: any[] | undefined, map: (x: any, i: number) => any) => {
       if (!Array.isArray(items)) return;
@@ -590,12 +591,50 @@ export default function Dashboard() {
       raw: x,
     }));
 
-    return records
-  .filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lng))
-  .sort((a, b) => {
+    const marketItems = Array.isArray(data.markets)
+      ? data.markets
+      : Array.isArray(data.markets?.markets)
+        ? data.markets.markets
+        : Array.isArray(data.markets?.indices)
+          ? data.markets.indices
+          : Array.isArray(data.markets?.assets)
+            ? data.markets.assets
+            : Array.isArray(data.markets?.stocks)
+              ? data.markets.stocks
+              : Array.isArray(data.markets?.crypto)
+                ? data.markets.crypto
+                : [];
+
+    add(marketItems, (x, i) => {
+      const symbol = x.symbol || x.ticker || x.name || x.id || `market-${i}`;
+      const name = x.name || x.title || symbol;
+      const price = x.price ?? x.last ?? x.close ?? x.value;
+      const change = x.change ?? x.changePercent ?? x.percent_change ?? x.percentChange;
+      const sector = x.sector || x.category || x.market || x.type || 'market';
+      const region = x.region || x.country || x.exchange || 'global markets';
+
+      return {
+        id: `market-${symbol}-${i}`,
+        type: 'market',
+        title: `${name}${symbol !== name ? ` (${symbol})` : ''}`,
+        source: x.source || 'OSIRIS Markets',
+        location: region,
+        lat: Number(x.lat ?? x.latitude ?? 40.7128),
+        lng: Number(x.lng ?? x.lon ?? x.longitude ?? -74.0060),
+        severity: String(change ?? sector ?? 'market'),
+        timestamp: x.time || x.timestamp || x.date || 'live',
+        raw: x,
+        symbol,
+        price,
+        change,
+        sector,
+      };
+    });
+
     const priority: Record<string, number> = {
       earthquake: 100,
       gdelt: 95,
+      market: 92,
       live_news: 90,
       global_incident: 90,
       military_flight: 85,
@@ -604,15 +643,17 @@ export default function Dashboard() {
       maritime_ship: 72,
       fire: 70,
       weather: 68,
+      infrastructure: 60,
       cctv: 45,
       commercial_flight: 35,
       private_flight: 30,
       satellite: 25,
     };
 
-    return (priority[b.type] || 10) - (priority[a.type] || 10);
-  })
-  .slice(0, 500);
+    return records
+      .filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lng))
+      .sort((a, b) => (priority[b.type] || 10) - (priority[a.type] || 10))
+      .slice(0, ARBITER_SIGNAL_LIMIT);
   }, [dataVersion]);
 
 
