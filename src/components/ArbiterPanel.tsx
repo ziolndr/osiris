@@ -105,7 +105,9 @@ export function ArbiterPanel({
                   <span className="truncate">{[result.record.type, result.record.location, result.record.severity].filter(Boolean).join(" · ")}</span>
                 </span>
               </span>
-              <em className="justify-self-end rounded border border-[var(--gold-primary)]/25 px-1.5 py-1 font-mono text-[9px] not-italic text-[var(--gold-primary)]">{Number(result.score).toFixed(3)}</em>
+              <em className="justify-self-end rounded border border-[var(--gold-primary)]/25 px-1.5 py-1 font-mono text-[9px] not-italic text-[var(--gold-primary)]">
+                {result.record.type === "market" ? "OPEN" : Number(result.score).toFixed(3)}
+              </em>
             </button>
           ))}
         </div>
